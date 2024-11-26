@@ -1,7 +1,8 @@
 use crate::connect::{ConnackPacket, ConnackReturnCode};
 use crate::package::types::ControlPackets;
 use crate::pubsub::{
-    PublishPacketResponse, SubackReturnCode, SubscriberPacketResponse, UnsubscribeAcknowledge,
+    PubackPacket, PubcompPacket, PublishPacketGet, PubrecPacket, SubackPacket, SubackReturnCode,
+    UnsubackPacket,
 };
 
 pub trait Decode {
@@ -60,7 +61,7 @@ impl Decode for ConnackPacket {
     }
 }
 
-impl Decode for PublishPacketResponse {
+impl Decode for PublishPacketGet {
     fn decode(&self, packet: Vec<u8>) {
         if packet.len() < 4 {
             println!("Packet is too short to be a valid PUBLISH packet");
@@ -79,14 +80,14 @@ impl Decode for PublishPacketResponse {
 
         let topic = String::from_utf8(packet[topic_start..topic_end].to_vec()).unwrap();
 
-        let payload_start = topic_end;
+        let payload_start = topic_end + 2;
         let payload = String::from_utf8(packet[payload_start..].to_vec()).unwrap();
         println!("Topic = {}", topic);
         println!("Message = {}", payload);
     }
 }
 
-impl Decode for SubscriberPacketResponse {
+impl Decode for SubackPacket {
     fn decode(&self, packet: Vec<u8>) {
         if packet.len() < 5 {
             println!("Invalid Suback packet, it must be at least 5 bytes");
@@ -112,7 +113,7 @@ impl Decode for SubscriberPacketResponse {
     }
 }
 
-impl Decode for UnsubscribeAcknowledge {
+impl Decode for UnsubackPacket {
     fn decode(&self, packet: Vec<u8>) {
         if packet.len() > 4 {
             println!("Invalid Unsuback packet, it must be 4 bytes");
@@ -120,6 +121,27 @@ impl Decode for UnsubscribeAcknowledge {
         }
         println!("Get Packet ID = 0x{:02X}{:02X}", packet[2], packet[3]);
         println!("Get Unsuback successfully");
+    }
+}
 
+impl Decode for PubrecPacket {
+    fn decode(&self, packet: Vec<u8>) {
+        if packet.len() != 4 {
+            println!("Invalid Pubrec packet, it must be 4 bytes");
+            return;
+        }
+
+        println!("Get Pubrec Packet ID 0x{:02X}{:02X}", packet[2], packet[3]);
+    }
+}
+
+impl Decode for PubcompPacket {
+    fn decode(&self, packet: Vec<u8>) {
+        if packet.len() != 4 {
+            println!("Invalid Pubcomp packet, it must be 4 bytes");
+            return;
+        }
+
+        println!("Get Pubrec Packet ID 0x{:02X}{:02X}", packet[2], packet[3]);
     }
 }

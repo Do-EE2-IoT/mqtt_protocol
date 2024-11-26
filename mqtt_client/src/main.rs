@@ -1,4 +1,4 @@
-use common::client::Client;
+use common::client::{self, Client};
 use common::connect::ConnackPacket;
 use common::package::decode::decode;
 use common::tcp_stream_handler::tokio;
@@ -21,6 +21,17 @@ async fn main() -> Result<(), String> {
         decode(ConnackPacket, connack);
     } else {
         panic!("Must get CONNACK from broker");
+    }
+    if let Err(e) = client.subscribe("/hello", 0).await {
+        println!("{e}");
+    }
+
+    if let Err(e) = client.publish("/hello", "Hanoi univesity", 0, 0, 0).await {
+        println!("{e}");
+    }
+
+    if let Err(e) = client.wait_publish_message().await {
+        println!("{e}");
     }
 
     Ok(())

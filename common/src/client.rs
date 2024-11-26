@@ -2,7 +2,8 @@ use std::io;
 
 use crate::{
     connect::{ConnackPacket, ConnectPacket},
-    package::{decode::decode, encode::encode},
+    package::{decode::decode, encode::encode, types::ControlPackets},
+    pubsub::{PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket},
     tcp_stream_handler::ClientStreamHandler,
 };
 use std::net::SocketAddr;
@@ -70,12 +71,40 @@ impl Client {
         qos: u8,
         dup: u8,
         retain: u8,
-    ) -> io::Result<()> {
-        todo!();
+    ) -> Result<(), String> {
+        let packet_id = 1;
+        let publishpacket = PublishPacket::new(topic, message, packet_id, dup, qos, retain);
+        if let Err(e) = self.stream.send(encode(publishpacket)).await {
+            return Err(format!("Publish Fail with Error: {e}"));
+        }
+        if qos == QosLevel::Qos1 as u8 {
+            todo!();
+        }
+        if qos == QosLevel::Qos2 as u8 {
+            todo!();
+        }
+
+        Ok(())
     }
 
-    pub async fn subscribe(&mut self, topic: &str, qos: u8) -> io::Result<()> {
-        todo!();
+    pub async fn subscribe(&mut self, topic: &str, qos: u8) -> Result<(), String> {
+        let packet_id = 1;
+        let subpacket = SubscribePacket::new(packet_id, topic, qos);
+        if let Err(e) = self.stream.send(encode(subpacket)).await {
+            println!("{e}");
+            return Err("Can't send Subscribe packet to broker".to_string());
+        }
+
+        if let Ok(data) = self.stream.read().await {
+            decode(SubackPacket, data);
+        } else {
+            return Err(
+                "Can't get Suback packet packet from broker, must send sub packet again"
+                    .to_string(),
+            );
+        }
+
+        Ok(())
     }
 
     pub async fn unsubscribe(&mut self, topic: &str) -> io::Result<()> {
@@ -91,6 +120,16 @@ impl Client {
     }
 
     pub async fn wait_publish_message(&mut self) -> io::Result<()> {
-        todo!();
+        if let Ok(packet) = self.stream.read().await {
+            if packet[0] == ControlPackets::Publish as u8 {
+                println!("Get Publish message");
+                decode(PublishPacketGet, packet);
+            } else {
+                println!("Packet[0] = {}", packet[0]);
+                println!("Not define packet, must check again");
+            }
+        }
+
+        Ok(())
     }
 }

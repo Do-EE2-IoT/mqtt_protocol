@@ -5,13 +5,20 @@ pub enum SubackReturnCode {
     Failure,
     Unknown,
 }
+
+#[derive(PartialEq)]
+pub enum QosLevel {
+    Qos0,
+    Qos1,
+    Qos2,
+}
 pub struct Last4BitsFixHeader {
     pub dup_flag: u8,
     pub qos_level: u8,
     pub retain: u8,
 }
 
-pub struct PublishPacketResponse;
+pub struct PublishPacketGet;
 pub struct SubscribePacket<'a> {
     pub packet_id: u16,
     pub topic_filter: &'a str,
@@ -23,9 +30,9 @@ pub struct UnsubscribePacket<'a> {
     pub topic: &'a str,
 }
 
-pub struct UnsubscribeAcknowledge ;
+pub struct UnsubackPacket;
 
-pub struct SubscriberPacketResponse;
+pub struct SubackPacket;
 pub struct PublishPacket<'a> {
     pub last4bits_fix_header: Last4BitsFixHeader,
     pub topic_name: &'a str,
@@ -33,6 +40,13 @@ pub struct PublishPacket<'a> {
     pub payload: &'a str,
 }
 
+pub struct PubackPacket;
+
+pub struct PubrelPacket {
+    pub packet_id: u16,
+}
+pub struct PubrecPacket;
+pub struct PubcompPacket;
 impl SubackReturnCode {
     pub fn from_u8(code: u8) -> Self {
         match code {

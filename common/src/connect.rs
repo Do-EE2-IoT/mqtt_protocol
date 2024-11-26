@@ -21,7 +21,7 @@ pub struct ConnectPacket {
     pub client_id: String,
 }
 
-pub struct Disconnect;
+pub struct DisconnectPacket;
 
 pub struct ConnackPacket;
 

@@ -1,6 +1,6 @@
-use crate::connect::{ConnectPacket, Disconnect};
+use crate::connect::{ConnectPacket, DisconnectPacket};
 use crate::package::types::ControlPackets;
-use crate::pubsub::{PublishPacket, SubscribePacket, UnsubscribePacket};
+use crate::pubsub::{PublishPacket, PubrelPacket, SubscribePacket, UnsubscribePacket};
 pub trait Encode {
     fn encode(&self) -> Result<Vec<u8>, String>;
 }
@@ -95,11 +95,21 @@ impl<'a> Encode for UnsubscribePacket<'a> {
     }
 }
 
-impl Encode for Disconnect {
+impl Encode for DisconnectPacket {
     fn encode(&self) -> Result<Vec<u8>, String> {
         let mut packet = vec![ControlPackets::Disconnect as u8];
         packet.push(0x00);
 
+        Ok(packet)
+    }
+}
+
+impl Encode for PubrelPacket {
+    fn encode(&self) -> Result<Vec<u8>, String> {
+        let mut packet = vec![ControlPackets::Pubrel as u8];
+        let remaining_length: u8 = 2;
+        packet.push(remaining_length);
+        packet.extend_from_slice(&[(self.packet_id >> 8) as u8, (self.packet_id & 0xFF) as u8]);
         Ok(packet)
     }
 }
