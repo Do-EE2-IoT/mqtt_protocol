@@ -1,5 +1,6 @@
-use std::io::{self, Error, Read, Write};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+use std::io;
+pub use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+pub use tokio;
 pub struct ClientStreamHandler {
     pub socket: TcpStream,
 }

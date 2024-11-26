@@ -1,43 +1,43 @@
 use std::io;
 
-use crate::tcp_stream_handler::ClientStreamHandler;
+use crate::{
+    connect::{ConnackPacket, ConnectPacket},
+    package::{decode::decode, encode::encode},
+    tcp_stream_handler::ClientStreamHandler,
+};
 use std::net::SocketAddr;
-use std::net::SocketAddrV4;
 
 pub struct Client {
     stream: ClientStreamHandler,
-    client_id: u16,
+    client_id: String,
     host: String,
     port: u16,
     username: Option<String>,
     password: Option<String>,
-    keep_alive: u8,
+    keep_alive: u16,
     clean_session: u8,
 }
 
 impl Client {
     pub async fn new(
-        client_id: u16,
-        host: String, // Host sẽ được lấy từ tham số đầu vào
+        client_id: String,
+        host: String,
         port: u16,
         username: Option<String>,
         password: Option<String>,
-        keep_alive: u8,
+        keep_alive: u16,
         clean_session: u8,
     ) -> Result<Self, String> {
-        // Kết hợp host và port thành SocketAddr
         let host_and_port = match format!("{}:{}", host, port).parse::<SocketAddr>() {
             Ok(addr) => addr,
             Err(_) => return Err("Invalid host or port".to_string()),
         };
 
-        // Thực hiện kết nối tới broker
         let stream = match ClientStreamHandler::connect(&host_and_port.to_string()).await {
             Ok(s) => s,
             Err(e) => return Err(format!("Failed to connect to broker: {}", e)),
         };
 
-        // Trả về một instance của MqttClient
         Ok(Self {
             stream,
             client_id,
@@ -48,6 +48,19 @@ impl Client {
             keep_alive,
             clean_session,
         })
+    }
+
+    pub async fn connect(&mut self) -> Result<Vec<u8>, String> {
+        let connect = ConnectPacket::new(self.keep_alive, self.client_id.clone());
+        if let Err(e) = self.stream.send(encode(connect)).await {
+            return Err(format!("{e}"));
+        }
+
+        if let Ok(buffer) = self.stream.read().await {
+            Ok(buffer)
+        } else {
+            Err("Can't read Connack from broker".to_string())
+        }
     }
 
     pub async fn publish(
