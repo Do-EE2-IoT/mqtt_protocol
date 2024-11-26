@@ -16,12 +16,10 @@ async fn main() -> Result<(), String> {
     )
     .await
     .expect("Must give suitable parameter to init connection with broker!");
-
-    if let Ok(connack) = client.connect().await {
-        decode(ConnackPacket, connack);
-    } else {
-        panic!("Must get CONNACK from broker");
+    if let Err(e) = client.connect().await {
+        println!("{e}");
     }
+
     if let Err(e) = client.subscribe("/hello", 0).await {
         println!("{e}");
     }
@@ -31,6 +29,10 @@ async fn main() -> Result<(), String> {
     }
 
     if let Err(e) = client.wait_publish_message().await {
+        println!("{e}");
+    }
+
+    if let Err(e) = client.disconnect().await {
         println!("{e}");
     }
 

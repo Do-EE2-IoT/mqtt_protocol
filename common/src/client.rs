@@ -1,12 +1,17 @@
 use std::io;
 
 use crate::{
-    connect::{ConnackPacket, ConnectPacket},
+    connect::{ConnackPacket, ConnectPacket, DisconnectPacket},
     package::{decode::decode, encode::encode, types::ControlPackets},
-    pubsub::{PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket},
+    pubsub::{
+        PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket, UnsubackPacket,
+        UnsubscribePacket,
+    },
     tcp_stream_handler::ClientStreamHandler,
 };
 use std::net::SocketAddr;
+use tokio::time::timeout;
+use tokio::time::Duration;
 
 pub struct Client {
     stream: ClientStreamHandler,
@@ -51,16 +56,32 @@ impl Client {
         })
     }
 
-    pub async fn connect(&mut self) -> Result<Vec<u8>, String> {
+    pub async fn connect(&mut self) -> Result<(), String> {
         let connect = ConnectPacket::new(self.keep_alive, self.client_id.clone());
         if let Err(e) = self.stream.send(encode(connect)).await {
             return Err(format!("{e}"));
         }
 
-        if let Ok(buffer) = self.stream.read().await {
-            Ok(buffer)
-        } else {
-            Err("Can't read Connack from broker".to_string())
+        match timeout(Duration::from_secs(1), self.stream.read()).await {
+            Ok(Ok(packet)) => {
+                if packet[0] == ControlPackets::Connack as u8 {
+                    decode(ConnackPacket, packet);
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "Get another packet {}, must be check again",
+                        packet[0]
+                    ))
+                }
+            }
+            Ok(Err(e)) => {
+                println!("{e}");
+                Err("Can't read anything from broker, must reconnect again".to_string())
+            }
+            Err(_) => {
+                println!("Timeout");
+                Err("Can't read anything from broker, must reconnect again".to_string())
+            }
         }
     }
 
@@ -95,28 +116,64 @@ impl Client {
             return Err("Can't send Subscribe packet to broker".to_string());
         }
 
-        if let Ok(data) = self.stream.read().await {
-            decode(SubackPacket, data);
-        } else {
-            return Err(
-                "Can't get Suback packet packet from broker, must send sub packet again"
-                    .to_string(),
-            );
+        match timeout(Duration::from_millis(100), self.stream.read()).await {
+            Ok(Ok(packet)) => {
+                if packet[0] == ControlPackets::Suback as u8 {
+                    decode(SubackPacket, packet);
+                } else {
+                    return Err("This is not Suback packet, must check again".to_string());
+                }
+            }
+
+            Ok(Err(e)) => {
+                println!("{e}");
+                return Err("Can't get suback from broker, must send again ".to_string());
+            }
+            Err(_) => println!("Timout get Suback"), // Must be check timeout
         }
 
         Ok(())
     }
 
-    pub async fn unsubscribe(&mut self, topic: &str) -> io::Result<()> {
-        todo!();
+    pub async fn unsubscribe(&mut self, topic: &str) -> Result<(), String> {
+        let packet_id = 1;
+        let unsubpacket = UnsubscribePacket::new(packet_id, topic);
+        if let Err(e) = self.stream.send(encode(unsubpacket)).await {
+            println!("Error: {e}");
+            return Err("Can't sen Unsub packet for broker. Must send again".to_string());
+        }
+
+        match timeout(Duration::from_millis(100), self.stream.read()).await {
+            Ok(Ok(packet)) => {
+                if packet[0] == ControlPackets::Unsuback as u8 {
+                    decode(UnsubackPacket, packet);
+                } else {
+                    return Err("This is not Unsuback packet, must check again".to_string());
+                }
+            }
+
+            Ok(Err(e)) => {
+                println!("{e}");
+                return Err("Can't get unsuback from broker, must send again ".to_string());
+            }
+            Err(_) => println!("Timout get unsuback"), // Must be check timeout
+        }
+
+        Ok(())
     }
 
     pub async fn ping(&mut self) -> io::Result<()> {
         todo!();
     }
 
-    pub async fn disconnect(&mut self) -> io::Result<()> {
-        todo!();
+    pub async fn disconnect(&mut self) -> Result<(), String> {
+        let disconnect = DisconnectPacket;
+        if let Err(e) = self.stream.send(encode(disconnect)).await {
+            println!("{e}");
+            Err("Can't send request disconnect to broker, must send again".to_string())
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn wait_publish_message(&mut self) -> io::Result<()> {
