@@ -6,7 +6,7 @@ pub struct ClientStreamHandler {
 
 impl ClientStreamHandler {
     pub fn connect(addr: &str) -> io::Result<ClientStreamHandler> {
-        let socket = TcpStream::connect(&addr).unwrap();
+        let socket = TcpStream::connect(addr).unwrap();
         Ok(ClientStreamHandler { socket })
     }
 

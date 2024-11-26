@@ -1,22 +1,19 @@
 use common::connect::{ConnackPacket, ConnectPacket};
 use common::package::decode::decode;
 use common::package::encode::encode;
-use common::pubsub::PublishPacket;
+use common::ping::{self, PingPacket, PingResPacket};
+use common::pubsub::{
+    PublishPacket, PublishPacketResponse, SubscribePacket, SubscriberPacketResponse,
+};
 use common::tcp_stream_handler::ClientStreamHandler;
-use futures::TryFutureExt;
-use std::error::Error;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    // Kết nối tới MQTT broker
+fn main() -> Result<(), String> {
     let broker_address = "127.0.0.1:1885"; // Địa chỉ broker (sử dụng localhost)
-    let mut stream = ClientStreamHandler::connect(broker_address).unwrap();
+    let mut stream =
+        ClientStreamHandler::connect(broker_address).expect("Can't connect with mqtt broker");
     println!("Đã kết nối tới broker tại {}", broker_address);
 
-    // Tạo gói CONNECT
-    let client_id = "rust_client"; // Client ID (phải là chuỗi không rỗng)
+    let client_id = "rust_client";
 
     let connect_packet = ConnectPacket::new(60, client_id.to_string());
     let connect_packet_encode = encode(connect_packet);
@@ -24,15 +21,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("{e}");
     }
 
-    // Đọc phản hồi từ broker (CONNACK)
-    let connect_ack = stream.read().unwrap();
-    decode(ConnackPacket, connect_ack);
+    if let Ok(connect_ack) = stream.read() {
+        decode(ConnackPacket, connect_ack);
+    }
+    let subscribe_packet = SubscribePacket::new(10, "/hello", 0);
+    if let Err(e) = stream.send(encode(subscribe_packet)) {
+        println!("{e}");
+    }
+    if let Ok(suback) = stream.read() {
+        decode(SubscriberPacketResponse, suback);
+    }
 
-    let publish_packet = PublishPacket::new("/hello", "How are you", 1,0,0,0);
+    let publish_packet = PublishPacket::new("/hello", "How are you", 1, 0, 0, 0);
     if let Err(e) = stream.send(encode(publish_packet)) {
         println!("{e}");
     }
 
+    if let Ok(publish) = stream.read() {
+        decode(PublishPacketResponse, publish);
+    }
+
+    let pingreq = PingPacket;
+    if let Err(e) = stream.send(encode(pingreq)) {
+        println!("Error: {e}");
+    }
+
+    if let Ok(pingres) = stream.read() {
+        decode(PingResPacket, pingres);
+    }
 
     Ok(())
 }

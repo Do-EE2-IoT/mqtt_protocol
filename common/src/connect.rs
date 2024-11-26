@@ -24,15 +24,15 @@ pub struct ConnectPacket {
 pub struct ConnackPacket;
 
 impl ConnackReturnCode {
-    fn from_u8(code: u8) -> ConnackReturnCode {
+    fn from_u8(code: u8) -> Self {
         match code {
-            0x00 => ConnackReturnCode::ConnectionAccept,
-            0x01 => ConnackReturnCode::UnacceptableProtocolVersion,
-            0x02 => ConnackReturnCode::IdentifierReject,
-            0x03 => ConnackReturnCode::ServerUnavailable,
-            0x04 => ConnackReturnCode::BadUsernameOrPassword,
-            0x05 => ConnackReturnCode::NotAuthorized,
-            _ => ConnackReturnCode::UnknownCode,
+            0x00 => Self::ConnectionAccept,
+            0x01 => Self::UnacceptableProtocolVersion,
+            0x02 => Self::IdentifierReject,
+            0x03 => Self::ServerUnavailable,
+            0x04 => Self::BadUsernameOrPassword,
+            0x05 => Self::NotAuthorized,
+            _ => Self::UnknownCode,
         }
     }
 }

@@ -228,6 +228,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "mio 0.8.11",
+ "pin-project-lite",
  "tokio",
 ]
 
