@@ -5,8 +5,8 @@ use crate::{
     mqtt::{decode::decode, encode::encode, types::ControlPackets},
     ping::{PingPacket, PingResPacket},
     pubsub::{
-        PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket, UnsubackPacket,
-        UnsubscribePacket,
+        PubackPacket, PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket,
+        UnsubackPacket, UnsubscribePacket,
     },
     tcp_stream_handler::ClientStreamHandler,
     utils::handle_packet,
@@ -97,9 +97,39 @@ impl Client {
         if let Err(e) = self.stream.send(encode(publishpacket)).await {
             return Err(format!("Publish Fail with Error: {e}"));
         }
+
         if qos == QosLevel::Qos1 as u8 {
-            todo!();
+            println!("QoS 1: Waiting for PUBACK...");
+            for attempt in 1..=3 {
+                match timeout(Duration::from_secs(5), self.stream.read()).await {
+                    Ok(Ok(packet)) => {
+                        if packet[0] == ControlPackets::Puback as u8 {
+                            if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                                decode(PubackPacket, packet);
+                                return Ok(());
+                            } else {
+                                println!("Received Puback with another packet ID, ignoring...");
+                                handle_packet(packet);
+                            }
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        println!("QoS 1: Attempt {attempt}: Error waiting for PUBACK: {e}")
+                    }
+                    Err(_) => println!("QoS 1: Attempt {attempt}: Timeout waiting for PUBACK."),
+                }
+
+                println!("QoS 1: Retrying publish...");
+                let retry_packet = PublishPacket::new(topic, message, packet_id, 1, qos, retain);
+                self.stream
+                    .send(encode(retry_packet))
+                    .await
+                    .map_err(|e| format!("Retry failed: {e}"))?;
+            }
+
+            return Err("QoS 1: Failed to receive PUBACK after 3 attempts.".to_string());
         }
+
         if qos == QosLevel::Qos2 as u8 {
             todo!();
         }

@@ -21,7 +21,7 @@ async fn main() -> Result<(), String> {
     tokio::spawn(console_input_handle(tx));
     let mut client = Client::new(
         "Nguyen Van Do".to_string(),
-        "test.mosquitto.org".to_string(),
+        "white-dev.aithings.vn".to_string(),
         1883,
         None,
         None,

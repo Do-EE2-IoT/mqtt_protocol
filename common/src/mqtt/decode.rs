@@ -80,7 +80,7 @@ impl Decode for PublishPacketGet {
 
         let topic = String::from_utf8(packet[topic_start..topic_end].to_vec()).unwrap();
 
-        let payload_start = topic_end + 2;
+        let payload_start = topic_end;
         let payload = String::from_utf8(packet[payload_start..].to_vec()).unwrap();
         println!("Topic = {}", topic);
         println!("Message = {}", payload);
