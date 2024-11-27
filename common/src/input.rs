@@ -52,7 +52,6 @@ impl FromStr for InputUser {
     // format: sub topic_name             : example:  "sub /hello"
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split_whitespace().collect();
-        println!("{:?}", parts);
         if parts.is_empty() {
             Err("Empty input".to_string())
         } else {

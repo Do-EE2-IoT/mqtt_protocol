@@ -20,9 +20,9 @@ async fn main() -> Result<(), String> {
     let (tx, mut rx): (Sender<InputUser>, Receiver<InputUser>) = tokio::sync::mpsc::channel(1);
     tokio::spawn(console_input_handle(tx));
     let mut client = Client::new(
-        "Nguyen Van Do v".to_string(),
-        "127.0.0.1".to_string(),
-        1885,
+        "Nguyen Van Do".to_string(),
+        "test.mosquitto.org".to_string(),
+        1883,
         None,
         None,
         60,

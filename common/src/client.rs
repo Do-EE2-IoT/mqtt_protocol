@@ -11,7 +11,6 @@ use crate::{
     tcp_stream_handler::ClientStreamHandler,
     utils::handle_packet,
 };
-use std::net::SocketAddr;
 use tokio::time::timeout;
 use tokio::time::Duration;
 
@@ -36,10 +35,8 @@ impl Client {
         keep_alive: u16,
         clean_session: u8,
     ) -> Result<Self, String> {
-        let host_and_port = match format!("{}:{}", host, port).parse::<SocketAddr>() {
-            Ok(addr) => addr,
-            Err(_) => return Err("Invalid host or port".to_string()),
-        };
+        let host_and_port = format!("{}:{}", host, port);
+        println!("{}", host_and_port);
 
         let stream = match ClientStreamHandler::connect(&host_and_port.to_string()).await {
             Ok(s) => s,
@@ -64,7 +61,7 @@ impl Client {
             return Err(format!("{e}"));
         }
 
-        match timeout(Duration::from_secs(1), self.stream.read()).await {
+        match timeout(Duration::from_secs(10), self.stream.read()).await {
             Ok(Ok(packet)) => {
                 if packet[0] == ControlPackets::Connack as u8 {
                     decode(ConnackPacket, packet);
@@ -121,7 +118,7 @@ impl Client {
         let max_retries = 5;
 
         while retries < max_retries {
-            match timeout(Duration::from_millis(100), self.stream.read()).await {
+            match timeout(Duration::from_millis(2000), self.stream.read()).await {
                 Ok(Ok(packet)) => {
                     if packet[0] == ControlPackets::Suback as u8 {
                         if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
@@ -149,7 +146,7 @@ impl Client {
         Err("Can't get suback".to_string())
     }
 
-    pub async fn unsubscribe(&mut self, topic: &str,) -> Result<(), String> {
+    pub async fn unsubscribe(&mut self, topic: &str) -> Result<(), String> {
         let packet_id = 3;
         let unsubpacket = UnsubscribePacket::new(packet_id, topic);
         if let Err(e) = self.stream.send(encode(unsubpacket)).await {
@@ -159,7 +156,7 @@ impl Client {
         let mut retries = 0;
         let max_retries = 5;
         while retries < max_retries {
-            match timeout(Duration::from_millis(100), self.stream.read()).await {
+            match timeout(Duration::from_millis(2000), self.stream.read()).await {
                 Ok(Ok(packet)) => {
                     if packet[0] == ControlPackets::Unsuback as u8 {
                         if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
@@ -194,7 +191,7 @@ impl Client {
         let mut retries = 0;
         let max_retries = 5;
         while retries < max_retries {
-            match timeout(Duration::from_millis(100), self.stream.read()).await {
+            match timeout(Duration::from_millis(2000), self.stream.read()).await {
                 Ok(Ok(packet)) => {
                     if packet[0] == ControlPackets::Pingresp as u8 {
                         decode(PingResPacket, packet);
