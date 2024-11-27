@@ -1,5 +1,5 @@
 use crate::connect::{ConnackPacket, ConnackReturnCode};
-use crate::package::types::ControlPackets;
+use crate::mqtt::types::ControlPackets;
 use crate::pubsub::{
     PubackPacket, PubcompPacket, PublishPacketGet, PubrecPacket, SubackPacket, SubackReturnCode,
     UnsubackPacket,

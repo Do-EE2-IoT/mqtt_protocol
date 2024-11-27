@@ -1,5 +1,5 @@
 use crate::{
-    package::{decode::decode, types::ControlPackets},
+    mqtt::{decode::decode, types::ControlPackets},
     ping::PingResPacket,
     pubsub::{
         PubackPacket, PubcompPacket, PublishPacket, PublishPacketGet, PubrecPacket, SubackPacket,

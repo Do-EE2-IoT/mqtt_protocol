@@ -1,4 +1,4 @@
-use crate::package::{decode::Decode, encode::Encode, types::ControlPackets};
+use crate::mqtt::{decode::Decode, encode::Encode, types::ControlPackets};
 
 pub struct PingPacket;
 

@@ -2,7 +2,7 @@ use std::io;
 
 use crate::{
     connect::{ConnackPacket, ConnectPacket, DisconnectPacket},
-    package::{decode::decode, encode::encode, types::ControlPackets},
+    mqtt::{decode::decode, encode::encode, types::ControlPackets},
     ping::{PingPacket, PingResPacket},
     pubsub::{
         PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket, UnsubackPacket,
@@ -149,7 +149,7 @@ impl Client {
         Err("Can't get suback".to_string())
     }
 
-    pub async fn unsubscribe(&mut self, topic: &str) -> Result<(), String> {
+    pub async fn unsubscribe(&mut self, topic: &str,) -> Result<(), String> {
         let packet_id = 3;
         let unsubpacket = UnsubscribePacket::new(packet_id, topic);
         if let Err(e) = self.stream.send(encode(unsubpacket)).await {

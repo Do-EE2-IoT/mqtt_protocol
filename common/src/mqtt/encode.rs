@@ -1,5 +1,5 @@
 use crate::connect::{ConnectPacket, DisconnectPacket};
-use crate::package::types::ControlPackets;
+use crate::mqtt::types::ControlPackets;
 use crate::pubsub::{PublishPacket, PubrelPacket, SubscribePacket, UnsubscribePacket};
 pub trait Encode {
     fn encode(&self) -> Result<Vec<u8>, String>;

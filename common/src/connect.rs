@@ -1,7 +1,7 @@
-use crate::package::decode::Decode;
-use crate::package::encode::Encode;
-use crate::package::types;
-use crate::package::types::ControlPackets;
+use crate::mqtt::decode::Decode;
+use crate::mqtt::encode::Encode;
+use crate::mqtt::types;
+use crate::mqtt::types::ControlPackets;
 use std::net::TcpStream;
 
 #[repr(u8)]
