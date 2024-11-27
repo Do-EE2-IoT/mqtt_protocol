@@ -3,6 +3,7 @@ use std::io;
 use crate::{
     connect::{ConnackPacket, ConnectPacket, DisconnectPacket},
     package::{decode::decode, encode::encode, types::ControlPackets},
+    ping::{PingPacket, PingResPacket},
     pubsub::{
         PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket, UnsubackPacket,
         UnsubscribePacket,
@@ -109,7 +110,7 @@ impl Client {
     }
 
     pub async fn subscribe(&mut self, topic: &str, qos: u8) -> Result<(), String> {
-        let packet_id = 1;
+        let packet_id = 0x0002;
         let subpacket = SubscribePacket::new(packet_id, topic, qos);
         if let Err(e) = self.stream.send(encode(subpacket)).await {
             println!("{e}");
@@ -119,7 +120,12 @@ impl Client {
         match timeout(Duration::from_millis(100), self.stream.read()).await {
             Ok(Ok(packet)) => {
                 if packet[0] == ControlPackets::Suback as u8 {
-                    decode(SubackPacket, packet);
+                    if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                        decode(SubackPacket, packet);
+                        return Ok(());
+                    } else {
+                        return Err("Get Suback but wrong packet ID ? ".to_string());
+                    }
                 } else {
                     return Err("This is not Suback packet, must check again".to_string());
                 }
@@ -136,7 +142,7 @@ impl Client {
     }
 
     pub async fn unsubscribe(&mut self, topic: &str) -> Result<(), String> {
-        let packet_id = 1;
+        let packet_id = 3;
         let unsubpacket = UnsubscribePacket::new(packet_id, topic);
         if let Err(e) = self.stream.send(encode(unsubpacket)).await {
             println!("Error: {e}");
@@ -146,7 +152,12 @@ impl Client {
         match timeout(Duration::from_millis(100), self.stream.read()).await {
             Ok(Ok(packet)) => {
                 if packet[0] == ControlPackets::Unsuback as u8 {
-                    decode(UnsubackPacket, packet);
+                    if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                        decode(UnsubackPacket, packet);
+                        return Ok(());
+                    } else {
+                        return Err("Get Unsuback but not true packet ID ???".to_string());
+                    }
                 } else {
                     return Err("This is not Unsuback packet, must check again".to_string());
                 }
@@ -162,8 +173,28 @@ impl Client {
         Ok(())
     }
 
-    pub async fn ping(&mut self) -> io::Result<()> {
-        todo!();
+    pub async fn ping(&mut self) -> Result<(), String> {
+        let pingpkg = PingPacket;
+        if let Err(e) = self.stream.send(encode(pingpkg)).await {
+            println!("{e}");
+            return Err("Can't send ping packet to broker".to_string());
+        }
+
+        match timeout(Duration::from_millis(100), self.stream.read()).await {
+            Ok(Ok(packet)) => {
+                if packet[0] == ControlPackets::Pingresp as u8 {
+                    decode(PingResPacket, packet);
+                    return Ok(());
+                }
+            }
+            Ok(Err(e)) => {
+                print!("{e}");
+                return Err("Can't read pingres from broker".to_string());
+            }
+            Err(_) => return Err("Timeout read Pingres".to_string()),
+        }
+
+        Ok(())
     }
 
     pub async fn disconnect(&mut self) -> Result<(), String> {

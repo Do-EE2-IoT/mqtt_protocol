@@ -32,6 +32,14 @@ async fn main() -> Result<(), String> {
         println!("{e}");
     }
 
+    if let Err(e) = client.unsubscribe("/hello").await {
+        print!("{e}");
+    }
+
+    if let Err(e) = client.ping().await {
+        print!("{e}");
+    }
+
     if let Err(e) = client.disconnect().await {
         println!("{e}");
     }
