@@ -9,6 +9,7 @@ use crate::{
         UnsubscribePacket,
     },
     tcp_stream_handler::ClientStreamHandler,
+    utils::handle_packet,
 };
 use std::net::SocketAddr;
 use tokio::time::timeout;
@@ -116,29 +117,36 @@ impl Client {
             println!("{e}");
             return Err("Can't send Subscribe packet to broker".to_string());
         }
+        let mut retries = 0;
+        let max_retries = 5;
 
-        match timeout(Duration::from_millis(100), self.stream.read()).await {
-            Ok(Ok(packet)) => {
-                if packet[0] == ControlPackets::Suback as u8 {
-                    if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
-                        decode(SubackPacket, packet);
-                        return Ok(());
+        while retries < max_retries {
+            match timeout(Duration::from_millis(100), self.stream.read()).await {
+                Ok(Ok(packet)) => {
+                    if packet[0] == ControlPackets::Suback as u8 {
+                        if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                            decode(SubackPacket, packet);
+                            return Ok(());
+                        } else {
+                            println!("Received Suback with another packet ID, ignoring...");
+                        }
                     } else {
-                        return Err("Get Suback but wrong packet ID ? ".to_string());
+                        handle_packet(packet);
                     }
-                } else {
-                    return Err("This is not Suback packet, must check again".to_string());
+                }
+                Ok(Err(e)) => {
+                    println!("Error while reading packet: {e}");
+                    return Err("Failed to read packet".to_string());
+                }
+                Err(_) => {
+                    // println!("Timeout while waiting for Suback");
                 }
             }
 
-            Ok(Err(e)) => {
-                println!("{e}");
-                return Err("Can't get suback from broker, must send again ".to_string());
-            }
-            Err(_) => println!("Timout get Suback"), // Must be check timeout
+            retries += 1;
         }
 
-        Ok(())
+        Err("Can't get suback".to_string())
     }
 
     pub async fn unsubscribe(&mut self, topic: &str) -> Result<(), String> {
@@ -148,29 +156,33 @@ impl Client {
             println!("Error: {e}");
             return Err("Can't sen Unsub packet for broker. Must send again".to_string());
         }
-
-        match timeout(Duration::from_millis(100), self.stream.read()).await {
-            Ok(Ok(packet)) => {
-                if packet[0] == ControlPackets::Unsuback as u8 {
-                    if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
-                        decode(UnsubackPacket, packet);
-                        return Ok(());
+        let mut retries = 0;
+        let max_retries = 5;
+        while retries < max_retries {
+            match timeout(Duration::from_millis(100), self.stream.read()).await {
+                Ok(Ok(packet)) => {
+                    if packet[0] == ControlPackets::Unsuback as u8 {
+                        if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                            decode(UnsubackPacket, packet);
+                            return Ok(());
+                        } else {
+                            println!("Get another packet id, ignore");
+                        }
                     } else {
-                        return Err("Get Unsuback but not true packet ID ???".to_string());
+                        handle_packet(packet);
+                        println!("Not ready get unsuback packet, wait");
                     }
-                } else {
-                    return Err("This is not Unsuback packet, must check again".to_string());
                 }
-            }
 
-            Ok(Err(e)) => {
-                println!("{e}");
-                return Err("Can't get unsuback from broker, must send again ".to_string());
+                Ok(Err(e)) => {
+                    println!("{e}");
+                    return Err("Can't get unsuback from broker, must send again ".to_string());
+                }
+                Err(_) => {} //println!("Timout get unsuback"), // Must be check timeout
             }
-            Err(_) => println!("Timout get unsuback"), // Must be check timeout
+            retries += 1;
         }
-
-        Ok(())
+        Err("Can't get unsuback".to_string())
     }
 
     pub async fn ping(&mut self) -> Result<(), String> {
@@ -179,22 +191,28 @@ impl Client {
             println!("{e}");
             return Err("Can't send ping packet to broker".to_string());
         }
-
-        match timeout(Duration::from_millis(100), self.stream.read()).await {
-            Ok(Ok(packet)) => {
-                if packet[0] == ControlPackets::Pingresp as u8 {
-                    decode(PingResPacket, packet);
-                    return Ok(());
+        let mut retries = 0;
+        let max_retries = 5;
+        while retries < max_retries {
+            match timeout(Duration::from_millis(100), self.stream.read()).await {
+                Ok(Ok(packet)) => {
+                    if packet[0] == ControlPackets::Pingresp as u8 {
+                        decode(PingResPacket, packet);
+                        return Ok(());
+                    } else {
+                        handle_packet(packet);
+                        println!("Not ready to get pingres, wait...");
+                    }
                 }
+                Ok(Err(e)) => {
+                    print!("{e}");
+                    return Err("Can't read pingres from broker".to_string());
+                }
+                Err(_) => {}
             }
-            Ok(Err(e)) => {
-                print!("{e}");
-                return Err("Can't read pingres from broker".to_string());
-            }
-            Err(_) => return Err("Timeout read Pingres".to_string()),
+            retries += 1;
         }
-
-        Ok(())
+        Err("Can't Pingres from broker".to_string())
     }
 
     pub async fn disconnect(&mut self) -> Result<(), String> {
@@ -212,9 +230,6 @@ impl Client {
             if packet[0] == ControlPackets::Publish as u8 {
                 println!("Get Publish message");
                 decode(PublishPacketGet, packet);
-            } else {
-                println!("Packet[0] = {}", packet[0]);
-                println!("Not define packet, must check again");
             }
         }
 

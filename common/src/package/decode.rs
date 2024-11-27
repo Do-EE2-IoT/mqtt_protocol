@@ -124,6 +124,16 @@ impl Decode for UnsubackPacket {
     }
 }
 
+impl Decode for PubackPacket {
+    fn decode(&self, packet: Vec<u8>) {
+        if packet.len() != 4 {
+            println!("Invalid Pubrec packet, it must be 4 bytes");
+            return;
+        }
+
+        println!("Get Pubrec Packet ID 0x{:02X}{:02X}", packet[2], packet[3]);
+    }
+}
 impl Decode for PubrecPacket {
     fn decode(&self, packet: Vec<u8>) {
         if packet.len() != 4 {
