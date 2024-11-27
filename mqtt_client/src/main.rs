@@ -36,7 +36,6 @@ async fn main() -> Result<(), String> {
             },
             _ = client.wait_publish_message() => {},
             input = console_input.pop() => {
-                println!("....");
                 if let Ok(data) = input {
                     match data {
                         InputUser::Publish {

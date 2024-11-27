@@ -35,6 +35,10 @@ impl InputUser {
     fn sub(topic: String, qos: u8) -> Self {
         Self::Subscribe { topic, qos }
     }
+
+    fn unsub(topic: String) -> Self {
+        Self::Unsubscribe { topic }
+    }
 }
 
 #[async_trait::async_trait]
@@ -88,6 +92,15 @@ impl FromStr for InputUser {
                         let topic = parts[1].to_string();
                         let qos = parts[2].parse::<u8>().unwrap();
                         Ok(InputUser::sub(topic, qos))
+                    }
+                }
+
+                "unsub" => {
+                    if parts.len() < 2 {
+                        Err("Need at least 2 input: sub topic".to_string())
+                    } else {
+                        let topic = parts[1].to_string();
+                        Ok(InputUser::unsub(topic))
                     }
                 }
                 "disconnect" => Ok(InputUser::Disconnect),
