@@ -2,15 +2,25 @@ use common::client::Client;
 use common::input::Input;
 use common::input::{ConsoleInput, InputUser};
 use common::tcp_stream_handler::tokio;
+use common::tcp_stream_handler::tokio::sync::mpsc::{Receiver, Sender};
 
-#[tokio::main]
-async fn main() -> Result<(), String> {
+async fn console_input_handle(tx: Sender<InputUser>) {
     let mut console_input = ConsoleInput {
         buffer: String::new(),
     };
+    while let Ok(data) = console_input.pop().await {
+        if let Err(e) = tx.send(data).await {
+            println!("Can't use channel because of error {e}");
+        }
+    }
+}
 
+#[tokio::main]
+async fn main() -> Result<(), String> {
+    let (tx, mut rx): (Sender<InputUser>, Receiver<InputUser>) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(console_input_handle(tx));
     let mut client = Client::new(
-        "Nguyen Van Do 2".to_string(),
+        "Nguyen Van Do v".to_string(),
         "127.0.0.1".to_string(),
         1885,
         None,
@@ -29,55 +39,52 @@ async fn main() -> Result<(), String> {
 
     loop {
         tokio::select! {
-            _ = interval.tick() => {
-                if let Err(e) = client.ping().await {
-                    println!("{e}");
-                }
-            },
-            _ = client.wait_publish_message() => {},
-            input = console_input.pop() => {
-                if let Ok(data) = input {
-                    match data {
-                        InputUser::Publish {
-                            topic,
-                            qos,
-                            message,
-                        } => {
-                            if let Err(e) = client.publish(topic.as_str(), message.as_str(), qos, 0, 0).await {
-                                println!("{e}");
-                            }
-                        },
-                        InputUser::Ping => {
-                            if let Err(e) = client.ping().await {
-                                println!("{e}");
-                            }
-                        },
-                        InputUser::Subscribe {
-                            topic,
-                            qos,
-                        } => {
-                            if let Err(e) = client.subscribe(topic.as_str(), qos).await {
-                                println!("{e}");
-                            }
-                        },
-                        InputUser::Disconnect => {
-                            println!("Disconnect");
-                            if let Err(e) = client.disconnect().await {
-                                println!("{e}");
-                            }
-                        },
-                        InputUser::Unsubscribe {
-                            topic,
-                        } => {
-                            if let Err(e) = client.unsubscribe(topic.as_str()).await {
-                                println!("{e}");
-                            }
-                        },
+        _ = interval.tick() => {
+            if let Err(e) = client.ping().await {
+                println!("{e}");
+            }
+        },
+        _ = client.wait_publish_message() => {},
+        Some(input) = rx.recv() => {
+            match input {
+                InputUser::Publish {
+                    topic,
+                    qos,
+                    message,
+                } => {
+                    if let Err(e) = client.publish(topic.as_str(), message.as_str(), qos, 0, 0).await {
+                        println!("{e}");
                     }
-                }
+                },
+                InputUser::Ping => {
+                    if let Err(e) = client.ping().await {
+                        println!("{e}");
+                    }
+                },
+                InputUser::Subscribe {
+                    topic,
+                    qos,
+                } => {
+                    if let Err(e) = client.subscribe(topic.as_str(), qos).await {
+                        println!("{e}");
+                    }
+                },
+                InputUser::Disconnect => {
+                    println!("Disconnect");
+                    if let Err(e) = client.disconnect().await {
+                        println!("{e}");
+                    }
+                },
+                InputUser::Unsubscribe {
+                    topic,
+                } => {
+                    if let Err(e) = client.unsubscribe(topic.as_str()).await {
+                        println!("{e}");
+                    }
+                },
+            }
             }
         }
     }
-
     Ok(())
 }
