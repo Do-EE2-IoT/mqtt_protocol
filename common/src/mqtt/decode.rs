@@ -152,6 +152,6 @@ impl Decode for PubcompPacket {
             return;
         }
 
-        println!("Get Pubrec Packet ID 0x{:02X}{:02X}", packet[2], packet[3]);
+        println!("Get Pubcomp Packet ID 0x{:02X}{:02X}", packet[2], packet[3]);
     }
 }

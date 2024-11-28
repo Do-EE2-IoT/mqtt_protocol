@@ -29,9 +29,9 @@ async fn main() -> Result<(), String> {
         0,
     )
     .await
-    .expect("Must give suitable parameter to init connection with broker!");
+    .expect("Must give suitable parameter dto init connection with broker!");
 
-    if let Err(e) = client.connect().await {
+    if let Err(e) = client.connect(10).await {
         println!("{e}");
     }
 

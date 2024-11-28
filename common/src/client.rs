@@ -5,8 +5,8 @@ use crate::{
     mqtt::{decode::decode, encode::encode, types::ControlPackets},
     ping::{PingPacket, PingResPacket},
     pubsub::{
-        PubackPacket, PublishPacket, PublishPacketGet, QosLevel, SubackPacket, SubscribePacket,
-        UnsubackPacket, UnsubscribePacket,
+        PubackPacket, PubcompPacket, PublishPacket, PublishPacketGet, PubrecPacket, PubrelPacket,
+        QosLevel, SubackPacket, SubscribePacket, UnsubackPacket, UnsubscribePacket,
     },
     tcp_stream_handler::ClientStreamHandler,
     utils::handle_packet,
@@ -55,13 +55,13 @@ impl Client {
         })
     }
 
-    pub async fn connect(&mut self) -> Result<(), String> {
+    pub async fn connect(&mut self, time_out: u64) -> Result<(), String> {
         let connect = ConnectPacket::new(self.keep_alive, self.client_id.clone());
         if let Err(e) = self.stream.send(encode(connect)).await {
             return Err(format!("{e}"));
         }
 
-        match timeout(Duration::from_secs(10), self.stream.read()).await {
+        match timeout(Duration::from_secs(time_out), self.stream.read()).await {
             Ok(Ok(packet)) => {
                 if packet[0] == ControlPackets::Connack as u8 {
                     decode(ConnackPacket, packet);
@@ -92,7 +92,7 @@ impl Client {
         dup: u8,
         retain: u8,
     ) -> Result<(), String> {
-        let packet_id = 1;
+        let packet_id = 1234;
         let publishpacket = PublishPacket::new(topic, message, packet_id, dup, qos, retain);
         if let Err(e) = self.stream.send(encode(publishpacket)).await {
             return Err(format!("Publish Fail with Error: {e}"));
@@ -105,12 +105,20 @@ impl Client {
                     Ok(Ok(packet)) => {
                         if packet[0] == ControlPackets::Puback as u8 {
                             if packet_id == ((packet[2] as u16) << 8) | (packet[3] as u16) {
+                                println!(
+                                    "packetid = 0x{:02x} and get 0x{:02x}",
+                                    packet_id,
+                                    ((packet[2] as u16) << 8) | (packet[3] as u16)
+                                );
                                 decode(PubackPacket, packet);
                                 return Ok(());
                             } else {
                                 println!("Received Puback with another packet ID, ignoring...");
                                 handle_packet(packet);
                             }
+                        } else {
+                            println!("Get another message");
+                            handle_packet(packet);
                         }
                     }
                     Ok(Err(e)) => {
@@ -131,7 +139,63 @@ impl Client {
         }
 
         if qos == QosLevel::Qos2 as u8 {
-            todo!();
+            println!("waiting Pubrec from broker ....");
+            for attempt in 1..3 {
+                match timeout(Duration::from_secs(5), self.stream.read()).await {
+                    Ok(Ok(packet)) => {
+                        if packet[0] == ControlPackets::Pubrec as u8 {
+                            if packet_id == (packet[2] as u16) << 8 | packet[3] as u16 {
+                                decode(PubrecPacket, packet);
+                                let pubrel = PubrelPacket::new(packet_id);
+                                if let Err(e) = self.stream.send(encode(pubrel)).await {
+                                    println!("{e}");
+                                }
+
+                                match timeout(Duration::from_secs(5), self.stream.read()).await {
+                                    Ok(Ok(packet)) => {
+                                        if packet[0] == ControlPackets::Pubcomp as u8 {
+                                            if packet_id
+                                                == (packet[2] as u16) << 8 | packet[3] as u16
+                                            {
+                                                decode(PubcompPacket, packet);
+                                                return Ok(());
+                                            } else {
+                                                println!("Get another packet ID, ignore ...");
+                                                handle_packet(packet);
+                                            }
+                                        } else {
+                                            println!("Get another packet ID");
+                                            handle_packet(packet);
+                                        }
+                                    }
+                                    Ok(Err(e)) => {
+                                        println!("{e}");
+                                    }
+                                    Err(_) => println!(
+                                        "QoS 2: Attempt {attempt}: Timeout waiting for PUBCOMP."
+                                    ),
+                                }
+                            } else {
+                                println!("Get another packet ID, ignor....");
+                                handle_packet(packet);
+                            }
+                        } else {
+                            println!("Get another message");
+                            handle_packet(packet);
+                        }
+                    }
+                    Ok(Err(e)) => println!("{e}"),
+                    Err(_) => println!("QoS 2: Attempt {attempt}: Timeout waiting for PUBREC."),
+                }
+
+                println!("QoS 1: Retrying publish...");
+                let retry_packet = PublishPacket::new(topic, message, packet_id, 1, qos, retain);
+                self.stream
+                    .send(encode(retry_packet))
+                    .await
+                    .map_err(|e| format!("Retry failed: {e}"))?;
+            }
+            return Err("Can't get PUBREC from broker, publish fail".to_string());
         }
 
         Ok(())

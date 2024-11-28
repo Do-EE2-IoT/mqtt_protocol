@@ -86,3 +86,9 @@ impl<'a> UnsubscribePacket<'a> {
         Self { packet_id, topic }
     }
 }
+
+impl PubrelPacket{
+    pub fn new(packet_id : u16) -> Self{
+        Self { packet_id }
+    }
+}
