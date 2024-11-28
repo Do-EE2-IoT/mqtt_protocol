@@ -61,7 +61,7 @@ impl Client {
             return Err(format!("{e}"));
         }
 
-        match timeout(Duration::from_secs(time_out), self.stream.read()).await {
+        match timeout(Duration::from_millis(time_out), self.stream.read()).await {
             Ok(Ok(packet)) => {
                 if packet[0] == ControlPackets::Connack as u8 {
                     decode(ConnackPacket, packet);
@@ -188,7 +188,7 @@ impl Client {
                     Err(_) => println!("QoS 2: Attempt {attempt}: Timeout waiting for PUBREC."),
                 }
 
-                println!("QoS 1: Retrying publish...");
+                println!("QoS 2: Retrying publish...");
                 let retry_packet = PublishPacket::new(topic, message, packet_id, 1, qos, retain);
                 self.stream
                     .send(encode(retry_packet))
